@@ -1,0 +1,22 @@
+{
+  "name": "block-overflow",
+  "version": "1.0.0",
+  "description": "Software Engineering Project",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "block-overflow"
+  },
+  "keywords": [
+    "dapp"
+  ],
+  "author": "Kyle Thomas",
+  "license": "MIT",
+  "dependencies": {
+    "browserify": "^16.2.3",
+    "require": "^2.4.20"
+  }
+}
