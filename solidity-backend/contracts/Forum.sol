@@ -46,7 +46,7 @@ contract Forum {
 
 
     //Constructor
-    constructor(address _tokenAddress) public {
+    constructor (address _tokenAddress) public {
         owner = msg.sender;
         minDeposit = 50;
         token = EIP20Interface(_tokenAddress);
@@ -58,7 +58,12 @@ contract Forum {
         require(msg.sender == sub.submitter || msg.sender == owner, "Invalid Credentials");
         _;
     }
-    
+
+    modifier responderOnly (Answer memory answer) {
+        require(msg.sender == answer.respondent || msg.sender == owner, "Invalid Credentials");
+        _;
+    }
+     
     modifier ownerOnly {
         require(msg.sender == owner, "You are not me, stop pretending.");
         _;
@@ -71,35 +76,56 @@ contract Forum {
 
 
     //Functions
-    function uploadSub (uint newSub) public payable {
+    function uploadSub (uint newSub, uint amount) public payable {
 
     }
 
-    function upvoteSub (uint submissionIndex, uint amount) public timeTested(allSubmissions[submissionIndex]){
-
+    function upvoteSub (uint submissionIndex, uint amount) public payable timeTested(allSubmissions[submissionIndex]){
+        token.transferFrom(msg.sender, address(this), amount);
+        submissionsMapping[submissionIndex].promoters.push(msg.sender);
+        submissionsMapping[submissionIndex].balances[msg.sender] += amount;
+        emit _UpvoteCast(msg.sender, amount);
     }
 
-    function downvoteSub (uint submissionIndex, uint amount) public timeTested(allSubmissions[submissionIndex]){
-
+    function downvoteSub (uint submissionIndex, uint amount) public payable timeTested(allSubmissions[submissionIndex]){
+        token.transferFrom(msg.sender, address(this), amount);
+        submissionsMapping[submissionIndex].challengers.push(msg.sender);
+        submissionsMapping[submissionIndex].balances[msg.sender] += amount;
+        emit _DownvoteCast(msg.sender, amount);
     }
 
     function calculateVotes() public {
         //Calculate questions votes and either publishes, rejects, or removes listing (consider adding ratio for majority)
     }
     
-    function submissionPublish(uint listingIndex) internal {
+    function submissionPublish(uint submissionIndex) internal {
         //Distribute funds to question upvoters and calculate votes for answers
     }
     
-    function submissionReject(uint listingIndex) internal {
+    function submissionReject(uint submissionIndex) internal {
         //Distribute funds to question downvoters and calculate votes for answers
     }
 
-    function removeSubmission(uint listingIndex) public submitterOnly(allSubmissions[listingIndex]) timeTested(allSubmissions[listingIndex]) returns(bool removed){
+    function removeSubmission(uint submissionIndex) public submitterOnly(allSubmissions[submissionIndex]) returns(bool removed){
         //Redistribute funds to question voters and answer voters
     }
     
     //FUNCTIONS FOR UPLOADING, UPVOTING, DOWNVOTING, AND REMOVING ANSWERS
+    function addResponse(uint submissionIndex, amount) public payable {
+
+    }
+
+    function upvoteResponse(uint submissionIndex, uint repsonseIndex, uint amount) public payable timeTested(allSubmissions[submissionIndex]) {
+
+    }
+
+    function downvoteResponse(uint submissionIndex, uint responseIndex, uint amount) public payable timeTested(allSubmissions[submissionIndex]) {
+
+    }
+
+    function removeResponse(uint submissionIndex, uint responseIndex) public responderOnly(allSubmissions[submissionIndex].responses[responseIndex]) returns(bool removed){
+
+    }
 
     //Get Functions
     function getExpirationTime(uint givenDataIndex) public view returns(uint expirationTime){
@@ -112,6 +138,10 @@ contract Forum {
     
     function getMinDeposit() public view returns(uint amount) {
         return (minDeposit);
+    }
+
+    function getResponseTotalVotes(uint givenSubIndex/*add index of responses*/) public view returns(){
+        return (allSubmissions[givenSubIndex].responses[givenResponseIndex].upvotes + allSubmissions[givenSubIndex].responses[givenResponseIndex].downvotes)
     }
 
     function setMinDeposit(uint amount) public ownerOnly {
