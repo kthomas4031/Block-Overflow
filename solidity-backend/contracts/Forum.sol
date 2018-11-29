@@ -10,8 +10,13 @@ contract Forum {
     event _SubmissionUploaded(uint indexed listingIndex);
     event _SubmissionPassed(uint indexed listingIndex);
     event _SubmissionDenied(uint indexed listingIndex);
-    event _ListingSubmitted(uint indexed listingIndex);
-    event _ListingRemoved(uint indexed listingIndex);
+    event _SubmissionRemoved(uint indexed listingIndex);
+    event _ResponseSubmitted(uint indexed listingIndex, uint indexed responseIndex);
+    event _ResponsePublished(uint indexed listingIndex, uint indexed responseIndex);
+    event _ResponseRemoved(uint indexed listingIndex, uint indexed responseIndex);
+    event _ResponseDenied(uint indexed listingIndex, uint indexed responseIndex);
+    event _FriendAdded(address user, address friend);
+    event _FriendRemoved(address user, address friend);
 
     //Structures
     struct Submission {
@@ -105,6 +110,9 @@ contract Forum {
         allSubmissions[newSub].balances[msg.sender] = amount;
         allSubmissions[newSub].promoters.push(msg.sender);
         userBase[msg.sender].contributionScore += amount;
+        userBase[msg.sender].postIndices.push(newSub);
+
+        emit _SubmissionUploaded(newSub);
     }
 
     function upvoteSub (uint submissionIndex, uint amount) public payable incomplete(allSubmissions[submissionIndex]) timeTested(allSubmissions[submissionIndex]) {
@@ -162,7 +170,6 @@ contract Forum {
     }
     
     function submissionReject(uint submissionIndex) internal {
-        //Distribute funds to question downvoters and calculate votes for answers
         for (uint i = 0 ; i < allSubmissions[submissionIndex].challengers.length ; i++) {
             uint ratio = ((allSubmissions[submissionIndex].balances[allSubmissions[submissionIndex].challengers[i]]*100) / (allSubmissions[submissionIndex].upvoteTotal));
             uint amountWon = (ratio*(allSubmissions[submissionIndex].downvoteTotal));
@@ -179,7 +186,6 @@ contract Forum {
     }
 
     function removeSubmission(uint submissionIndex) public submitterOnly(allSubmissions[submissionIndex]) returns(bool removed) {
-        //Redistribute funds to question voters and answer voters
         for (uint i = 0 ; i < allSubmissions[submissionIndex].answers.length ; i++){
             removeResponse(submissionIndex, i);
         }
@@ -194,7 +200,7 @@ contract Forum {
             token.transfer(allSubmissions[submissionIndex].challengers[i], allSubmissions[submissionIndex].balances[allSubmissions[submissionIndex].challengers[i]]);
         }
         allSubmissions[submissionIndex].completed = true;
-        emit _ListingRemoved(allSubmissions[submissionIndex].submittedDataIndex);
+        emit _SubmissionRemoved(allSubmissions[submissionIndex].submittedDataIndex);
         return true;
     }
     
@@ -212,6 +218,7 @@ contract Forum {
         allSubmissions[submissionIndex].answers[responseIndex].balances[msg.sender] = amount;
         allSubmissions[submissionIndex].answers[responseIndex].promoters.push(msg.sender);
         userBase[msg.sender].contributionScore += amount;
+        emit _ResponseSubmitted(submissionIndex, responseIndex);
     }
 
     function upvoteResponse(uint submissionIndex, uint responseIndex, uint amount) public payable incomplete(allSubmissions[submissionIndex]) timeTested(allSubmissions[submissionIndex]) {
@@ -220,6 +227,7 @@ contract Forum {
         allSubmissions[submissionIndex].answers[responseIndex].balances[msg.sender] += amount;
         allSubmissions[submissionIndex].answers[responseIndex].upvoteTotal += amount;
         userBase[msg.sender].contributionScore += amount;
+        emit _UpvoteCast(msg.sender, amount);
     }
 
     function downvoteResponse(uint submissionIndex, uint responseIndex, uint amount) public payable timeTested(allSubmissions[submissionIndex]) {
@@ -228,6 +236,7 @@ contract Forum {
         allSubmissions[submissionIndex].answers[responseIndex].balances[msg.sender] += amount;
         allSubmissions[submissionIndex].answers[responseIndex].downvoteTotal += amount;
         userBase[msg.sender].contributionScore += amount;
+        emit _DownvoteCast(msg.sender, amount);
     }
 
     function calculateResponse(uint submissionIndex, uint responseIndex) internal returns (bool publish) {
@@ -271,7 +280,7 @@ contract Forum {
         }
         allSubmissions[submissionIndex].answers[responseIndex].promoters = [0];
         allSubmissions[submissionIndex].answers[responseIndex].challengers = [0];
-        emit _ListingRemoved(allSubmissions[submissionIndex].submittedDataIndex);
+        emit _ResponseRemoved(submissionIndex, responseIndex);
         return true;
     }
 
@@ -284,6 +293,7 @@ contract Forum {
         }
         userBase[msg.sender].friends.push(friend);
         userBase[msg.sender].contributionScore += 100;
+        emit _FriendAdded(msg.sender, friend);
     }
 
     function removeFriend(address hater) public {
@@ -294,6 +304,7 @@ contract Forum {
                 break;
             }
         }
+        emit _FriendRemoved(msg.sender, hater);
     }
 
     //Get Functions

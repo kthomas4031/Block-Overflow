@@ -1,6 +1,6 @@
 const registryContractABI = [];
 const contractAddress = ``;
-const schedule = require('node-schedule');
+//const schedule = require('node-schedule');
 let minDeposit, registryContractInstance, account, web3;
 
 window.addEventListener('load', async () => {
@@ -32,18 +32,20 @@ window.addEventListener('load', async () => {
     
     const registryContract = window.web3.eth.contract(registryContractABI);
     registryContractInstance = registryContract.at(contractAddress);
-    getSubmissions();
+    getAllSubmissions();
     minDeposit = getMinDeposit();
+
+    particlesJS.load('particles-js', './js/particles.json');
 });
 
-let timedCountdown = schedule.scheduleJob('0 0 * * *', function(){
-    registryContractInstance.calculateVotes(account, function(error, transactionHash){
-        if (!error){
-            console.log(transactionHash);
-        } else
-            console.log(error);
-    })
-});
+// let timedCountdown = schedule.scheduleJob('0 0 * * *', function(){
+//     registryContractInstance.calculateVotes(account, function(error, transactionHash){
+//         if (!error){
+//             console.log(transactionHash);
+//         } else
+//             console.log(error);
+//     })
+// });
 
 function sendListing(){
     let url = document.getElementById('urlField').value
@@ -84,15 +86,15 @@ function removeResponse(){
 }
 
 function getMinDeposit(){
-    registryContractInstance.getMinDeposit(account, function(error, result){
-        if (!error){
-            document.getElementById('minDeposit').value = 'Minimum Deposit: ' + result;
-            minDeposit = result;
-        } else{
-            console.log(error);
-            minDeposit = 50;
-        }
-    });
+    // registryContractInstance.getMinDeposit(account, function(error, result){
+    //     if (!error){
+    //         document.getElementById('minDeposit').value = 'Minimum Deposit: ' + result;
+    //         minDeposit = result;
+    //     } else{
+    //         console.log(error);
+    //         minDeposit = 50;
+    //     }
+    // });
 }
 
 function getAllSubmissions(){
