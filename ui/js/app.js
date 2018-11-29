@@ -1,9 +1,11 @@
 const registryContractABI = [];
 const contractAddress = ``;
-//const schedule = require('node-schedule');
-let minDeposit, registryContractInstance, account, web3;
+const schedule = require('node-schedule');
+const mysql = require('mysql');
+let minDeposit, registryContractInstance, account, web3, con;
 
 window.addEventListener('load', async () => {
+    particlesJS.load('particles-js', './js/particles.json');
     // Modern dapp browsers...
     if (window.ethereum) {
         window.web3 = new Web3(ethereum);
@@ -35,7 +37,20 @@ window.addEventListener('load', async () => {
     getAllSubmissions();
     minDeposit = getMinDeposit();
 
-    particlesJS.load('particles-js', './js/particles.json');
+    // var con = mysql.createConnection({
+    //   host: "localhost",
+    //   user: "yourusername",
+    //   password: "yourpassword",
+    //   database: "mydb"
+    // });
+
+    // con.connect(function(err) {
+    //   if (err) throw err;
+    //   con.query("SELECT * FROM customers", function (err, result, fields) {
+    //     if (err) throw err;
+    //     console.log(result);
+    //   });
+    // });
 });
 
 // let timedCountdown = schedule.scheduleJob('0 0 * * *', function(){
@@ -68,8 +83,8 @@ function sendListing(){
         console.log("Error: One of two fields not filled out or amount does not meet minimum.");
 }
 
-function removeSubmission(index){
-    registryContractInstance.removeListing(DBINDEX, function(error,result){
+function removeSubmission(dbindex){
+    registryContractInstance.removeListing(dbindex, function(error,result){
         if (!error){
             //remove submission and answers from database
         } else

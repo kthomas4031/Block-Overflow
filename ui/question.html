@@ -27,6 +27,9 @@
   <!-- Scripts
   –––––––––––––––––––––––––––––––––––––––––––––––––– -->
   <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+  <script src="js/particles.js"></script>
+  <script src="js/bundle.js"></script>
+
 
   <!-- Favicon
   –––––––––––––––––––––––––––––––––––––––––––––––––– -->
@@ -39,15 +42,18 @@
   –––––––––––––––––––––––––––––––––––––––––––––––––– -->
 
 
-  <div class="section get-help">
+  <div class="title name" id="realTitle">
     <div class="container">
-      <h3 class="section-heading">Q U E S T I O N S</h3>
+      <h1>Q U E S T I O N S</h1>
     </div>
   </div>
 
+<div id = "particles-js" width="100%" height="100"></div>
+
     <form class="section section-description" action="redirect.html">
         <h4>Ask a Question</h4>
-        <input type="text" name="enterquestion" size=100><br>
+        <input type="text" name="enterquestion" size= 100 placeholder="question"><br>
+        <input type="number" name="amount" size= 30 min= 0 placeholder="amount to stake"><br>
         <input type="submit" value="SUBMIT">
       </form>
 
@@ -62,9 +68,6 @@
   <div class="section get-help">
         <a class="button button-primary" href="index.html">Home</a>
     </div>
-
-
-
 
 <!-- End Document
   –––––––––––––––––––––––––––––––––––––––––––––––––– -->
