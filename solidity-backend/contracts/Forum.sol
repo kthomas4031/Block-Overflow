@@ -24,17 +24,24 @@ contract Forum {
         address[] challengers;
         mapping(address => uint) balances;
         bool completed;
-        Answer[26] responses;
+        Answer[26] answers;
     }
 
     struct Answer {
         address respondent;
-        uint upvotes;
-        uint downvotes;
+        uint upvoteTotal;
+        uint downvoteTotal;
         address[] promoters;
         address[] challengers;
         mapping(address => uint) balances;
-        //FIGURE OUT INDEX TYPE AND MAKE INDEX VAR
+        uint index;
+    }
+
+    struct User {
+        string name;
+        address[] friends;
+        uint[] postIndices;
+        uint contributionScore;
     }
 
 
@@ -43,6 +50,7 @@ contract Forum {
     address private owner;
     EIP20Interface public token;
     Submission[] allSubmissions;
+    mapping(address => User) userBase;
 
 
     //Constructor
@@ -74,74 +82,259 @@ contract Forum {
         _;
     }
 
+    modifier incomplete (Submission memory sub) {
+        require(sub.completed != true, "Submisison Completed");
+        _;
+    }
+
 
     //Functions
     function uploadSub (uint newSub, uint amount) public payable {
+        require(amount >= minDeposit);
+        token.transferFrom(msg.sender, address(this), amount);
 
+        Submission memory addedSub;
+        addedSub.submitter = msg.sender;
+        addedSub.submittedDataIndex = newSub;
+        addedSub.expirationTime = now + 604800;
+        addedSub.downvoteTotal = 0;
+        addedSub.completed = false;
+        addedSub.upvoteTotal = amount;
+
+        allSubmissions[newSub] = addedSub;
+        allSubmissions[newSub].balances[msg.sender] = amount;
+        allSubmissions[newSub].promoters.push(msg.sender);
+        userBase[msg.sender].contributionScore += amount;
     }
 
-    function upvoteSub (uint submissionIndex, uint amount) public payable timeTested(allSubmissions[submissionIndex]){
+    function upvoteSub (uint submissionIndex, uint amount) public payable incomplete(allSubmissions[submissionIndex]) timeTested(allSubmissions[submissionIndex]) {
         token.transferFrom(msg.sender, address(this), amount);
-        submissionsMapping[submissionIndex].promoters.push(msg.sender);
-        submissionsMapping[submissionIndex].balances[msg.sender] += amount;
+        allSubmissions[submissionIndex].promoters.push(msg.sender);
+        allSubmissions[submissionIndex].balances[msg.sender] += amount;
+        allSubmissions[submissionIndex].upvoteTotal += amount;
+        userBase[msg.sender].contributionScore += amount;
         emit _UpvoteCast(msg.sender, amount);
     }
 
-    function downvoteSub (uint submissionIndex, uint amount) public payable timeTested(allSubmissions[submissionIndex]){
+    function downvoteSub (uint submissionIndex, uint amount) public payable incomplete(allSubmissions[submissionIndex]) timeTested(allSubmissions[submissionIndex]) {
         token.transferFrom(msg.sender, address(this), amount);
-        submissionsMapping[submissionIndex].challengers.push(msg.sender);
-        submissionsMapping[submissionIndex].balances[msg.sender] += amount;
+        allSubmissions[submissionIndex].challengers.push(msg.sender);
+        allSubmissions[submissionIndex].balances[msg.sender] += amount;
+        allSubmissions[submissionIndex].downvoteTotal += amount;
+        userBase[msg.sender].contributionScore += amount;
         emit _DownvoteCast(msg.sender, amount);
     }
 
     function calculateVotes() public {
         //Calculate questions votes and either publishes, rejects, or removes listing (consider adding ratio for majority)
+        for (uint i = 0 ; i < allSubmissions.length ; i++) {
+            if (allSubmissions[i].expirationTime > now && allSubmissions[i].completed == false) {
+                uint ratio = (allSubmissions[i].upvoteTotal*100 / (allSubmissions[i].upvoteTotal + allSubmissions[i].downvoteTotal));
+                if (ratio > 59) {
+                    submissionPublish(i);
+                } else if (ratio < 41) {
+                    submissionReject(i);
+                } else {
+                    removeSubmission(i);
+                }
+            }
+        }
     }
     
     function submissionPublish(uint submissionIndex) internal {
         //Distribute funds to question upvoters and calculate votes for answers
+        for (uint i = 0 ; i < allSubmissions[submissionIndex].promoters.length ; i++) {
+            uint ratio = ((allSubmissions[submissionIndex].balances[allSubmissions[submissionIndex].promoters[i]]*100) / (allSubmissions[submissionIndex].upvoteTotal));
+            uint amountWon = (ratio*(allSubmissions[submissionIndex].downvoteTotal));
+            token.transfer(allSubmissions[submissionIndex].promoters[i], (amountWon/100));
+            allSubmissions[submissionIndex].balances[allSubmissions[submissionIndex].promoters[i]] = 0;
+        }
+        allSubmissions[submissionIndex].completed = true;
+
+        for (i = 0 ; i < allSubmissions[submissionIndex].answers.length ; i++){
+            bool keepResponse = calculateResponse(submissionIndex, i);
+            if (!keepResponse){
+                delete(allSubmissions[submissionIndex].answers[i]);
+            }
+        }
+        
+        emit _SubmissionPassed(allSubmissions[submissionIndex].submittedDataIndex);
     }
     
     function submissionReject(uint submissionIndex) internal {
         //Distribute funds to question downvoters and calculate votes for answers
+        for (uint i = 0 ; i < allSubmissions[submissionIndex].challengers.length ; i++) {
+            uint ratio = ((allSubmissions[submissionIndex].balances[allSubmissions[submissionIndex].challengers[i]]*100) / (allSubmissions[submissionIndex].upvoteTotal));
+            uint amountWon = (ratio*(allSubmissions[submissionIndex].downvoteTotal));
+            token.transfer(allSubmissions[submissionIndex].challengers[i], (amountWon/100));
+            allSubmissions[submissionIndex].balances[allSubmissions[submissionIndex].challengers[i]] = 0;
+        }
+        allSubmissions[submissionIndex].completed = true;
+
+        for (i = 0 ; i < allSubmissions[submissionIndex].answers.length ; i++){
+            removeResponse(submissionIndex, i);
+        }
+
+        emit _SubmissionDenied(allSubmissions[submissionIndex].submittedDataIndex);
     }
 
-    function removeSubmission(uint submissionIndex) public submitterOnly(allSubmissions[submissionIndex]) returns(bool removed){
+    function removeSubmission(uint submissionIndex) public submitterOnly(allSubmissions[submissionIndex]) returns(bool removed) {
         //Redistribute funds to question voters and answer voters
+        for (uint i = 0 ; i < allSubmissions[submissionIndex].answers.length ; i++){
+            removeResponse(submissionIndex, i);
+        }
+        for (i = 0 ; i < allSubmissions[submissionIndex].promoters.length ; i++) {
+            uint share = allSubmissions[submissionIndex].balances[allSubmissions[submissionIndex].promoters[i]];
+            allSubmissions[submissionIndex].balances[allSubmissions[submissionIndex].promoters[i]] = 0;
+            token.transfer(allSubmissions[submissionIndex].promoters[i], share);
+        }
+        for (i = 0 ; i < allSubmissions[submissionIndex].challengers.length; i++) {
+            share = allSubmissions[submissionIndex].balances[allSubmissions[submissionIndex].challengers[i]];
+            allSubmissions[submissionIndex].balances[allSubmissions[submissionIndex].challengers[i]] = 0;
+            token.transfer(allSubmissions[submissionIndex].challengers[i], allSubmissions[submissionIndex].balances[allSubmissions[submissionIndex].challengers[i]]);
+        }
+        allSubmissions[submissionIndex].completed = true;
+        emit _ListingRemoved(allSubmissions[submissionIndex].submittedDataIndex);
+        return true;
     }
     
-    //FUNCTIONS FOR UPLOADING, UPVOTING, DOWNVOTING, AND REMOVING ANSWERS
-    function addResponse(uint submissionIndex, amount) public payable {
+    function addResponse(uint submissionIndex, uint responseIndex, uint amount) public payable incomplete(allSubmissions[submissionIndex]) timeTested(allSubmissions[submissionIndex]) {
+        require(amount >= minDeposit);
+        token.transferFrom(msg.sender, address(this), amount);
 
+        Answer newAnswer;
+        newAnswer.respondent = msg.sender;
+        newAnswer.upvoteTotal = amount;
+        newAnswer.downvoteTotal = 0;
+        newAnswer.index = responseIndex;
+
+        allSubmissions[submissionIndex].answers[responseIndex] = newAnswer;
+        allSubmissions[submissionIndex].answers[responseIndex].balances[msg.sender] = amount;
+        allSubmissions[submissionIndex].answers[responseIndex].promoters.push(msg.sender);
+        userBase[msg.sender].contributionScore += amount;
     }
 
-    function upvoteResponse(uint submissionIndex, uint repsonseIndex, uint amount) public payable timeTested(allSubmissions[submissionIndex]) {
-
+    function upvoteResponse(uint submissionIndex, uint responseIndex, uint amount) public payable incomplete(allSubmissions[submissionIndex]) timeTested(allSubmissions[submissionIndex]) {
+        token.transferFrom(msg.sender, address(this), amount);
+        allSubmissions[submissionIndex].answers[responseIndex].promoters.push(msg.sender);
+        allSubmissions[submissionIndex].answers[responseIndex].balances[msg.sender] += amount;
+        allSubmissions[submissionIndex].answers[responseIndex].upvoteTotal += amount;
+        userBase[msg.sender].contributionScore += amount;
     }
 
     function downvoteResponse(uint submissionIndex, uint responseIndex, uint amount) public payable timeTested(allSubmissions[submissionIndex]) {
-
+        token.transferFrom(msg.sender, address(this), amount);
+        allSubmissions[submissionIndex].answers[responseIndex].challengers.push(msg.sender);
+        allSubmissions[submissionIndex].answers[responseIndex].balances[msg.sender] += amount;
+        allSubmissions[submissionIndex].answers[responseIndex].downvoteTotal += amount;
+        userBase[msg.sender].contributionScore += amount;
     }
 
-    function removeResponse(uint submissionIndex, uint responseIndex) public responderOnly(allSubmissions[submissionIndex].responses[responseIndex]) returns(bool removed){
+    function calculateResponse(uint submissionIndex, uint responseIndex) internal returns (bool publish) {
+        uint ratio = (allSubmissions[submissionIndex].answers[responseIndex].upvoteTotal*100 / (allSubmissions[submissionIndex].answers[responseIndex].upvoteTotal + allSubmissions[submissionIndex].answers[responseIndex].downvoteTotal));
+        if (ratio > 59) {
+            for (uint i = 0 ; i < allSubmissions[submissionIndex].answers[responseIndex].promoters.length ; i++) {
+                uint ratioIndiv = ((allSubmissions[submissionIndex].answers[responseIndex].balances[allSubmissions[submissionIndex].answers[responseIndex].promoters[i]]*100) / (allSubmissions[submissionIndex].answers[responseIndex].upvoteTotal));
+                uint amountWon = (ratioIndiv*(allSubmissions[submissionIndex].answers[responseIndex].downvoteTotal));
+                token.transfer(allSubmissions[submissionIndex].answers[responseIndex].promoters[i], (amountWon/100));
+                allSubmissions[submissionIndex].answers[responseIndex].balances[allSubmissions[submissionIndex].answers[responseIndex].promoters[i]] = 0;
+            }
+            allSubmissions[submissionIndex].answers[responseIndex].challengers = [0];
+            allSubmissions[submissionIndex].answers[responseIndex].promoters = [0];
+            return true;
+        } else if (ratio < 41) {
+            for (i = 0 ; i < allSubmissions[submissionIndex].answers[responseIndex].promoters.length ; i++) {
+                ratioIndiv = ((allSubmissions[submissionIndex].answers[responseIndex].balances[allSubmissions[submissionIndex].answers[responseIndex].promoters[i]]*100) / (allSubmissions[submissionIndex].answers[responseIndex].upvoteTotal));
+                amountWon = (ratioIndiv*(allSubmissions[submissionIndex].answers[responseIndex].downvoteTotal));
+                token.transfer(allSubmissions[submissionIndex].answers[responseIndex].promoters[i], (amountWon/100));
+                allSubmissions[submissionIndex].answers[responseIndex].balances[allSubmissions[submissionIndex].answers[responseIndex].promoters[i]] = 0;
+            }
+            allSubmissions[submissionIndex].answers[responseIndex].challengers = [0];
+            allSubmissions[submissionIndex].answers[responseIndex].promoters = [0];
+            return false;
+        } else {
+            removeResponse(submissionIndex, responseIndex);
+            return false;
+        }
+    }
 
+    function removeResponse(uint submissionIndex, uint responseIndex) public responderOnly(allSubmissions[submissionIndex].answers[responseIndex]) returns(bool removed){
+        for (uint i = 0 ; i < allSubmissions[submissionIndex].answers[responseIndex].promoters.length ; i++) {
+            uint share = allSubmissions[submissionIndex].answers[responseIndex].balances[allSubmissions[submissionIndex].answers[responseIndex].promoters[i]];
+            allSubmissions[submissionIndex].answers[responseIndex].balances[allSubmissions[submissionIndex].answers[responseIndex].promoters[i]] = 0;
+            token.transfer(allSubmissions[submissionIndex].answers[responseIndex].promoters[i], share);
+        }
+        for (i = 0 ; i < allSubmissions[submissionIndex].answers[responseIndex].challengers.length; i++) {
+            share = allSubmissions[submissionIndex].answers[responseIndex].balances[allSubmissions[submissionIndex].answers[responseIndex].challengers[i]];
+            allSubmissions[submissionIndex].answers[responseIndex].balances[allSubmissions[submissionIndex].answers[responseIndex].challengers[i]] = 0;
+            token.transfer(allSubmissions[submissionIndex].answers[responseIndex].challengers[i], share);
+        }
+        allSubmissions[submissionIndex].answers[responseIndex].promoters = [0];
+        allSubmissions[submissionIndex].answers[responseIndex].challengers = [0];
+        emit _ListingRemoved(allSubmissions[submissionIndex].submittedDataIndex);
+        return true;
+    }
+
+    //Freindship
+    function addFriend(address friend) public {
+        for (uint i = 0 ; i < userBase[msg.sender].friends.length ; i++){
+            if(userBase[msg.sender].friends[i] == friend){
+                break;
+            }
+        }
+        userBase[msg.sender].friends.push(friend);
+        userBase[msg.sender].contributionScore += 100;
+    }
+
+    function removeFriend(address hater) public {
+        userBase[msg.sender].contributionScore -= 100;
+        for (uint i = 0 ; i < userBase[msg.sender].friends.length ; i++){
+            if(userBase[msg.sender].friends[i] == hater){
+                delete(userBase[msg.sender].friends[i]);
+                break;
+            }
+        }
     }
 
     //Get Functions
-    function getExpirationTime(uint givenDataIndex) public view returns(uint expirationTime){
+    function getExpirationTime(uint givenDataIndex) public view returns(uint expirationTime) {
         return (allSubmissions[givenDataIndex].expirationTime);
     }
 
-    function getSubTotalVotes(uint givenDataIndex) public view returns(uint voteTotal){
+    function getSubTotalVotes(uint givenDataIndex) public view returns(uint voteTotal) {
         return (allSubmissions[givenDataIndex].upvoteTotal + allSubmissions[givenDataIndex].downvoteTotal);
+    }
+
+    function getQuestionProvider(uint givenDataIndex) public view returns(string name) {
+        return (userBase[allSubmissions[givenDataIndex].submitter].name);
+    }
+
+    function getAnswerVotes(uint givenSubmissionIndex, uint givenResponseIndex) public view returns(uint voteTotal) {
+        return (allSubmissions[givenSubmissionIndex].answers[givenResponseIndex].upvoteTotal + allSubmissions[givenSubmissionIndex].answers[givenResponseIndex].downvoteTotal);
+    }
+
+    function getAnswerProvider(uint givenSubmissionIndex, uint givenResponseIndex) public view returns(string name) {
+        return (userBase[allSubmissions[givenSubmissionIndex].answers[givenResponseIndex].respondent].name);
     }
     
     function getMinDeposit() public view returns(uint amount) {
         return (minDeposit);
     }
+    
+    function getUserName(address user) public returns (string name) {
+        return (userBase[user].name);
+    }
 
-    function getResponseTotalVotes(uint givenSubIndex/*add index of responses*/) public view returns(){
-        return (allSubmissions[givenSubIndex].responses[givenResponseIndex].upvotes + allSubmissions[givenSubIndex].responses[givenResponseIndex].downvotes)
+    function getFriendsList(address user) public returns (address[] list) {
+        return (userBase[user].friends);
+    }
+    
+    function getContributionScore(address user) public returns (uint score) {
+        return (userBase[user].contributionScore);
+    }
+
+    function getUserPosts(address user) public returns (uint[] posts) {
+        return (userBase[user].postIndices);
     }
 
     function setMinDeposit(uint amount) public ownerOnly {
