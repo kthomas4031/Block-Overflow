@@ -17,6 +17,7 @@ __________________________________________________*/
   top: 10%;
   background-color: transparent;
   width: 100%;
+  pointer-events: none;
 }
 #realTitle .container{
   background-color: inherit;
