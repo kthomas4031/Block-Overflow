@@ -44,38 +44,43 @@
 
   <div class="title name" id="realTitle">
     <div class="container">
-      <h1>Q U E S T I O N S</h1>
+      <h1>R E S P O N S E</h1>
     </div>
   </div>
 
-  <div id = "particles-js" width="100%" height="100"></div>
+<div id = "particles-js" width="100%" height="100"></div>
 
-  <form class="section section-description" action="redirect.html">
-    <h4>Ask a Question</h4>
-    <input type="text" name="enterquestion" size= 100 placeholder="question"><br>
-    <input type="number" name="amount" size= 30 min= 0 placeholder="minimum: 50"><br>
-    <input type="submit" value="SUBMIT">
-  </form>
+    <form class="section section-description">
+        <h4 >Defining a feature structure unification</h4>
+        <div class="button button-primary">Upvote</div>
+        <input type="number" name="enterstake" size= 35 placeholder="Place your stake">
+        <div class="button button-primary">Downvote</div>
+    </form>
 
   <div class="section section-description">
     <div>
-      <h4>Sample Question:</h4>
-      <h4><a href="answer.html">Defining a feature structure unification</a></h4>
-      <h6>How would one define a feature structure unification and subsumption in minikanren if we represent feature structures with lists? 
-        The general behaviour would be something like this (I think):</h6>
+    <p>
+        How would one define a feature structure unification and subsumption in minikanren if we represent feature structures with lists?<br>
+        The general behaviour would be something like this (I think):<br><br>
+    <code>(run* (q) (unifyo '(a b) '(a b) q))) => (a b)</code><br>
+    <code>(run* (q) (unifyo '(x (a b)) '(x (c d)) q)) => (x (a b) (c d)) (x (c d) (a b))</code><br>
+    <code>(run* (q) (unifyo '(x (a b)) '(x (a d)) q)) => (); fails because (a b) is incompatible with '(a d)</code><br>
+    <code>(run* (q) (unifyo '(x (a b)) `(x ,y) q)) => (x (a b))</code><br>
+    <code>(run* (q) (unifyo q '(x (a b)) '(x (a b) (c d)))) => (x (c d))</code><br>
+    </p>
     </div>
   </div>
 
   <div class="section section-description">
     <div>
-        <h4>Already Asked:</h4>
-        <h4 class="listquestion"> </h4><br><br>
+        <h4>Stakes</h4>
+        <h4 class="totalstaked"> </h4><br><br>
     </div>
   </div>
 
   <div class="section get-help">
         <a class="button button-primary" href="index.html">Home</a>
-  </div>
+    </div>
 
 <!-- End Document
   –––––––––––––––––––––––––––––––––––––––––––––––––– -->

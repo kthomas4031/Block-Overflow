@@ -43698,32 +43698,21 @@ window.addEventListener('load', async () => {
     const registryContract = window.web3.eth.contract(registryContractABI);
     registryContractInstance = registryContract.at(contractAddress);
     getAllSubmissions();
-    minDeposit = getMinDeposit();
 
-    // var con = mysql.createConnection({
-    //   host: "localhost",
-    //   user: "yourusername",
-    //   password: "yourpassword",
-    //   database: "mydb"
-    // });
-
-    // con.connect(function(err) {
-    //   if (err) throw err;
-    //   con.query("SELECT * FROM customers", function (err, result, fields) {
-    //     if (err) throw err;
-    //     console.log(result);
-    //   });
-    // });
+    var con = mysql.createConnection({
+      host: "localhost",
+      database: "overchain.sql"
+    });
 });
 
-// let timedCountdown = schedule.scheduleJob('0 0 * * *', function(){
-//     registryContractInstance.calculateVotes(account, function(error, transactionHash){
-//         if (!error){
-//             console.log(transactionHash);
-//         } else
-//             console.log(error);
-//     })
-// });
+let timedCountdown = schedule.scheduleJob('0 0 * * *', function(){
+    registryContractInstance.calculateVotes(account, function(error, transactionHash){
+        if (!error){
+            console.log(transactionHash);
+        } else
+            console.log(error);
+    })
+});
 
 function sendListing(){
     let url = document.getElementById('urlField').value
@@ -43755,27 +43744,71 @@ function removeSubmission(dbindex){
     });
 }
 
-function sendResponse(){
+function sendResponse(subIndex, resIndex, amount){
     //Add response to database and contract
+    registryContractInstance.addResponse(subIndex, resIndex, amount, function(error, transactionHash){
+      if(error){
+          console.log(transactionHash);
+      }
+  });
 }
 
-function removeResponse(){
+function removeResponse(subIndex, resIndex){
     //remove from database and contract
+    registryContractInstance.removeResponse(subIndex, resIndex, amount, function(result, error){
+      if(result){
+        //Drop from database
+      }
+  });
 }
 
 function getMinDeposit(){
-    // registryContractInstance.getMinDeposit(account, function(error, result){
-    //     if (!error){
-    //         document.getElementById('minDeposit').value = 'Minimum Deposit: ' + result;
-    //         minDeposit = result;
-    //     } else{
-    //         console.log(error);
-    //         minDeposit = 50;
-    //     }
-    // });
+    registryContractInstance.getMinDeposit(account, function(error, result){
+        if (!error){
+            minDeposit = result;
+            return ("Minimum Deposit: " + result);
+        } else{
+            console.log(error);
+            minDeposit = 50;
+        }
+    });
+}
+
+function addFriend(address){
+  registryContractInstance.addFriend(address, function(error, transactionHash){
+    if(error){
+      console.log(transactionHash);
+    }
+  });
+}
+
+function removeFriend(address){
+  registryContractInstance.removeFriend(address, function(error, transactionHash){
+    if(error){
+      console.log(transactionHash);
+    }
+  });
 }
 
 function getAllSubmissions(){
+  let numberOfSubmissions = 0;
     //for loop iterating through indices in database
+    con.connect(function(err) {
+      if (err) break;
+      con.query("SELECT COUNT(*) FROM Questions", function (err, result, fields) {
+        if (err) break;
+        numberOfSubmissions = result;
+      });
+    });
+
+    for(let i = 0 ; i < numberOfSubmissions ; i++){
+      con.connect(function(err) {
+      if (err) break;
+      con.query("SELECT "+ i +" FROM Questions", function (err, result, fields) {
+        if (err) break;
+
+      });
+    });
+  }
 }
 },{"mysql":180,"node-schedule":235}]},{},[254]);
